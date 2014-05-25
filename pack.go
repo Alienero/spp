@@ -97,7 +97,7 @@ func (c *Conn) readAll(data []byte, size int) (err error) {
 func (c *Conn) WritePack(pack *Pack) error {
 	var err error
 	// parse pack
-	if pack.Typ > 20 {
+	if pack.Size == 1 {
 		// Type size is 1 byte
 		// PackLength is 2 bytes
 		err = c.w.WriteByte(byte(pack.Typ))
