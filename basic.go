@@ -38,6 +38,8 @@ type Conn struct {
 	// Read and Write size temple cache
 	rSize []byte
 	wSize []byte
+
+	pakcLenLimit int
 }
 
 func NewConn(c *net.TCPConn) *Conn {
