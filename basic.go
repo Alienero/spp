@@ -34,13 +34,19 @@ type Conn struct {
 	conn *net.TCPConn
 	w    *bufio.Writer
 	r    *bufio.Reader
+
+	// Read and Write size temple cache
+	rSize []byte
+	wSize []byte
 }
 
 func NewConn(c *net.TCPConn) *Conn {
 	conn := &Conn{
-		conn: c,
-		w:    bufio.NewWriter(c),
-		r:    bufio.NewReader(c),
+		conn:  c,
+		w:     bufio.NewWriter(c),
+		r:     bufio.NewReader(c),
+		rSize: make([]byte, 8),
+		wSize: make([]byte, 8),
 	}
 	return conn
 }
