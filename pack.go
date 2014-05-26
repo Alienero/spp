@@ -2,7 +2,6 @@ package spp
 
 import (
 	"encoding/binary"
-	"errors"
 	"time"
 )
 
@@ -13,7 +12,7 @@ type Pack struct {
 }
 
 func (c *Conn) setPack(packLenSize int, typ int, typSize int, body []byte) (*Pack, error) {
-	pack := new(pack)
+	pack := new(Pack)
 	if typSize == 1 && packLenSize == 2 {
 		if typ <= 20 {
 			return nil, &SppError{"typ<=20"}
@@ -41,9 +40,12 @@ func (c *Conn) SetTempPack(packLenSize int, typ int, typSize int, body []byte) (
 }
 
 func (c *Conn) ReadPack() (*Pack, error) {
-	err := c.conn.SetReadDeadline(time.Now().Add(c.readDeadline))
-	if err != nil {
-		return nil, err
+	var err error
+	if c.readDeadline > 0 {
+		err = c.conn.SetReadDeadline(time.Now().Add(c.readDeadline))
+		if err != nil {
+			return nil, err
+		}
 	}
 	ts, err := c.r.ReadByte()
 	if err != nil {
@@ -65,8 +67,10 @@ func (c *Conn) ReadPack() (*Pack, error) {
 		// convert
 		packLen, _ := c.getInt(c.rSize[:size[0]])
 
-		if packLen > c.pakcLenLimit {
-			return nil, &SppError{"pack length is too long!"}
+		if c.pakcLenLimit > 0 {
+			if packLen > c.pakcLenLimit {
+				return nil, &SppError{"pack length is too long!"}
+			}
 		}
 		// Read the whole pack
 		data := make([]byte, packLen)
@@ -81,7 +85,7 @@ func (c *Conn) ReadPack() (*Pack, error) {
 	} else {
 		// Pack length's size is 2 bytes, not include pack type
 		// This byte is type number
-		pack.Typ, _ = int(ts) // type number
+		pack.Typ = int(ts) // type number
 		ts = 1
 		size := c.getSize(ts)
 		// Read the pack len
@@ -93,7 +97,7 @@ func (c *Conn) ReadPack() (*Pack, error) {
 		packLen, _ := c.getInt(c.rSize[:size[1]])
 
 		data := make([]byte, packLen)
-		err = c.readAll(data, size[1])
+		err = c.readAll(data, packLen)
 		if err != nil {
 			return nil, err
 		}
@@ -103,16 +107,16 @@ func (c *Conn) ReadPack() (*Pack, error) {
 
 	return pack, nil
 }
-func (c *Conn) readAll(data []byte, size int) (err error) {
+func (c *Conn) readAll(data []byte, length int) (err error) {
 	hasRead := 0
 	read := 0
 	for {
-		read, err = c.r.Read(data[hasRead:size])
+		read, err = c.r.Read(data[hasRead:length])
 		if err != nil {
 			return
 		}
 		hasRead += read
-		if hasRead == size {
+		if hasRead == length {
 			break
 		}
 	}
@@ -121,9 +125,16 @@ func (c *Conn) readAll(data []byte, size int) (err error) {
 
 func (c *Conn) WritePack(pack *Pack) error {
 	var err error
-	err = c.conn.SetWriteDeadline(time.Now().Add(c.writeDeadline))
-	if err != nil {
-		return err
+	defer func() {
+		if err == nil {
+			c.w.Flush()
+		}
+	}()
+	if c.writeDeadline > 0 {
+		err = c.conn.SetWriteDeadline(time.Now().Add(c.writeDeadline))
+		if err != nil {
+			return err
+		}
 	}
 	// parse pack
 	if pack.Size == 1 {
@@ -146,7 +157,7 @@ func (c *Conn) WritePack(pack *Pack) error {
 			return err
 		}
 		// Write pack length(include pack length and type length)
-		err = c.writeAll(c.getBytes(len(pack.Body)+c.getSize(pack.Size)[1], c.getSize(pack.Size[0])))
+		err = c.writeAll(c.getBytes(len(pack.Body)+c.getSize(pack.Size)[1], c.getSize(pack.Size)[0]))
 		if err != nil {
 			return err
 		}
@@ -169,7 +180,6 @@ func (c *Conn) writeAll(data []byte) (err error) {
 		}
 		hasWrite += write
 	}
-	err = c.w.Flush()
 	return
 }
 
@@ -188,6 +198,6 @@ func (c *Conn) getBytes(n int, size int) []byte {
 		}
 	}()
 	buf := make([]byte, size)
-	binary.PutVarint(buf, n)
+	binary.PutVarint(buf, int64(n))
 	return buf
 }
