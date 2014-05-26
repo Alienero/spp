@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// The first num is the type's size,second num is the pack len's
-// size . They all support byte, uint16, uint32, uint64.
+// The first num is the pack len's size , the second
+// num is the type's size,second  . They all support byte, uint16, uint32, uint64.
 var sizeType *[16][2]int = &[16][2]int{
 	{1, 1}, {1, 2}, {1, 3}, {1, 4},
 	{2, 1}, {2, 2}, {2, 3}, {2, 4},
@@ -26,7 +26,9 @@ func (err *SppError) Error() string {
 type Conn struct {
 	// It's the first byte, set the type field and pack
 	// len field size .
-	sizeByte byte
+	sizeByte    byte
+	packLenSize int
+	typLenSize  int
 
 	readDeadline  time.Duration
 	writeDeadline time.Duration
@@ -67,5 +69,7 @@ func (c *Conn) SetSizeByte(length int, typ int) (byte, error) {
 		return 0, &SppError{"typ is out of range!"}
 	}
 	c.sizeByte = c.getSizeByte(length, typ)
+	c.packLenSize = c.getSize(c.sizeByte)[0]
+	c.typLenSize = c.getSize(c.sizeByte)[1]
 	return c.sizeByte, nil
 }

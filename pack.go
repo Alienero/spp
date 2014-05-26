@@ -12,7 +12,32 @@ type Pack struct {
 	Body []byte
 }
 
-func (c *Conn) SetPack(typ int, packLen int, body []byte) (*Pack, error) {
+func (c *Conn) setPack(packLenSize int, typ int, typSize int, body []byte) (*Pack, error) {
+	pack := new(pack)
+	if typSize == 1 && packLenSize == 2 {
+		if typ <= 20 {
+			return nil, &SppError{"typ<=20"}
+		}
+		pack.Size = 1
+		pack.Typ = typ
+	} else {
+		pack.Size = c.getSizeByte(packLenSize, typSize)
+		pack.Typ = typ
+	}
+	pack.Body = body
+	return pack, nil
+}
+func (c *Conn) SetDefaultPack(typ int, body []byte) (*Pack, error) {
+	return c.setPack(2, typ, 1, body)
+}
+func (c *Conn) SetStandardPack(typ int, body []byte) (*Pack, error) {
+	return c.setPack(c.packLenSize, typ, c.typLenSize, body)
+}
+func (c *Conn) SetTempPack(packLenSize int, typ int, typSize int, body []byte) (*Pack, error) {
+	if (packLenSize < 0 || packLenSize > 4) || (typSize < 0 || typSize > 4) {
+		return nil, &SppError{"length is out of range!"}
+	}
+	return c.setPack(packLenSize, typ, typSize, body)
 }
 
 func (c *Conn) ReadPack() (*Pack, error) {
@@ -96,6 +121,10 @@ func (c *Conn) readAll(data []byte, size int) (err error) {
 
 func (c *Conn) WritePack(pack *Pack) error {
 	var err error
+	err = c.conn.SetWriteDeadline(time.Now().Add(c.writeDeadline))
+	if err != nil {
+		return err
+	}
 	// parse pack
 	if pack.Size == 1 {
 		// Type size is 1 byte
@@ -117,12 +146,32 @@ func (c *Conn) WritePack(pack *Pack) error {
 			return err
 		}
 		// Write pack length(include pack length and type length)
+		err = c.writeAll(c.getBytes(len(pack.Body)+c.getSize(pack.Size)[1], c.getSize(pack.Size[0])))
+		if err != nil {
+			return err
+		}
+		// Write pack type
+		err = c.writeAll(c.getBytes(pack.Typ, c.getSize(pack.Size)[1]))
+		if err != nil {
+			return err
+		}
 	}
 	// Write the pack body
 	return c.writeAll(pack.Body)
 
 }
-func (c *Conn) writeAll(data []byte) error {}
+func (c *Conn) writeAll(data []byte) (err error) {
+	write := 0
+	for hasWrite := 0; hasWrite < len(data); {
+		write, err = c.w.Write(data[hasWrite:])
+		if err != nil {
+			return
+		}
+		hasWrite += write
+	}
+	err = c.w.Flush()
+	return
+}
 
 func (c *Conn) getInt(data []byte) (i int, err error) {
 	j, n := binary.Varint(data)
