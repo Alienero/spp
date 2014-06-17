@@ -77,6 +77,6 @@ func (c *Conn) SetSizeByte(length int, typ int) (byte, error) {
 func (c *Conn) SetReadDeadline(n time.Duration) {
 	c.readDeadline = n
 }
-func (c *Conn) SetWeadDeadline(n time.Duration) {
+func (c *Conn) SetWriteDeadline(n time.Duration) {
 	c.writeDeadline = n
 }
