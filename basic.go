@@ -73,3 +73,10 @@ func (c *Conn) SetSizeByte(length int, typ int) (byte, error) {
 	c.typLenSize = c.getSize(c.sizeByte)[1]
 	return c.sizeByte, nil
 }
+
+func (c *Conn) SetReadDeadline(n time.Duration) {
+	c.readDeadline = n
+}
+func (c *Conn) SetWeadDeadline(n time.Duration) {
+	c.writeDeadline = n
+}
